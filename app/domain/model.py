@@ -114,7 +114,9 @@ def allocate(line: OrderLine, batches: List[Batch]) -> str:
     Raises:
         ValueError: If no batch can allocate the order line.
     """
+	
     try:
+		# next() simply returns the first matching item from the generator expression
         batch = next(
             b for b in sorted(batches) if b.can_allocate(line)
         )
