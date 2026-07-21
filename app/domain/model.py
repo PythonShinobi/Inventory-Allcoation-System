@@ -13,6 +13,7 @@ class OrderLine:
 	and quantity. It describes what product is being ordered and
 	how many units are requested.
 	"""
+
 	orderid: str
 	sku: str
 	qty: int
@@ -27,6 +28,7 @@ class Batch:
 	customer order lines, and determines how much stock is still
 	available.
 	"""
+
 	def __init__(
 		self,
 		ref: str,
@@ -91,7 +93,9 @@ class OutOfStock(Exception):
     This occurs when all matching batches have insufficient available
     quantity or when no batch exists for the requested SKU.
     """
-    pass
+    
+    def __init__(self, sku):
+        super().__init__(f"Out of stock for SKU {sku}")
 
 
 def allocate(line: OrderLine, batches: List[Batch]) -> str:
@@ -112,7 +116,7 @@ def allocate(line: OrderLine, batches: List[Batch]) -> str:
         The reference of the batch that the order line was allocated to.
 
     Raises:
-        ValueError: If no batch can allocate the order line.
+        OutOfStock: If no batch can allocate the order line.
     """
 	
     try:
@@ -122,9 +126,7 @@ def allocate(line: OrderLine, batches: List[Batch]) -> str:
         )
 				
     except StopIteration:
-        raise ValueError(
-            f"Out of stock for SKU '{line.sku}'"
-        )
+        raise OutOfStock(line.sku)
 
     batch.allocate(line)
 		

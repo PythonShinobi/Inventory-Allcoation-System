@@ -1,10 +1,10 @@
-import abc
+from abc import ABC, abstractmethod
 
 from . import orm
 from app.domain import model
 
 
-class AbstractRepository(abc.ABC):
+class AbstractRepository(ABC):
     """
     Defines the interface (port) for storing and retrieving Batch objects.
 
@@ -13,24 +13,31 @@ class AbstractRepository(abc.ABC):
     another storage mechanism.
     """
 
-    @abc.abstractmethod
+    @abstractmethod
     def add(self, batch: model.Batch):
         """
         Store a Batch in the repository.
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
+    @abstractmethod
     def get(self, reference: str) -> model.Batch:
         """
         Retrieve a Batch by its unique reference.
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def list(self) -> list[model.Batch]:
+        """
+        Return all batches from the repository
+        """
+        raise NotImplementedError
+
 
 class SqlAlchemyRepository(AbstractRepository):
     """
-    Repository implementation backed by SQLAlchemy (adapter).
+    This is an Adapter. It is a Repository implementation backed by SQLAlchemy.
 
     Stores and retrieves Batch entities using a SQLAlchemy session.
     """
@@ -55,7 +62,7 @@ class SqlAlchemyRepository(AbstractRepository):
 
 class FakeRepository(AbstractRepository):
     """
-    An in-memory implementation of the repository (adapter).
+    This is an Adapter. It is an in-memory implementation of the repository.
 
     Instead of storing batches in a database, this repository keeps
     them in a Python set. It is mainly used for unit tests.

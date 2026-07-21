@@ -148,9 +148,10 @@ def test_returns_allocated_batch_ref():
 
 
 def test_raises_out_of_stock_exception_if_cannot_allocate():
-    batch = Batch("batch-1", "SMALL-FORK", 10, eta=date.today())
+    batch = Batch("batch-1", "SMALL-FORK", 10, eta=date.today())  # Available Forks are 10
 
-    allocate(OrderLine("order-1", "SMALL-FORK", 10), [batch])
+    allocate(OrderLine("order-1", "SMALL-FORK", 10), [batch])  # Ordered forks are 10
 
+    # Raised if another order is placed on an empty batch
     with pytest.raises(OutOfStock, match="SMALL-FORK"):
         allocate(OrderLine("order-2", "SMALL-FORK", 1), [batch])
