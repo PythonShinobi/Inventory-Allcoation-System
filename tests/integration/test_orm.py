@@ -1,3 +1,5 @@
+from sqlalchemy import text
+
 from app.domain import model
 
 
@@ -7,13 +9,15 @@ def test_orderline_mapper_can_load_lines(session):
     OrderLine domain objects.
     """
     session.execute(
-        """
-        INSERT INTO order_lines (orderid, sku, qty)
-        VALUES
-            ('order1', 'RED-CHAIR', 12),
-            ('order1', 'RED-TABLE', 13),
-            ('order2', 'BLUE-LIPSTICK', 14)
-        """
+        text(
+            """
+            INSERT INTO order_lines (order_id, sku, qty)
+            VALUES
+                ('order1', 'RED-CHAIR', 12),
+                ('order1', 'RED-TABLE', 13),
+                ('order2', 'BLUE-LIPSTICK', 14)
+            """
+        )        
     )
 
     expected = [
@@ -41,9 +45,12 @@ def test_orderline_mapper_can_save_lines(session):
 
     rows = list(
         session.execute(
-            """
-            SELECT * order_lines
-            """
+            text(
+                """
+                SELECT order_id, sku, qty
+                FROM order_lines
+                """
+            )
         )
     )
 

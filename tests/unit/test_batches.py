@@ -19,7 +19,7 @@ def make_batch_and_line(sku, batch_qty, line_qty):
 def test_can_allocate_if_available_greater_than_required():
     large_batch, small_line = make_batch_and_line("ELEGANT-LAMP", 20, 2)
 
-    assert large_batch.can_allocate(small_line)
+    assert large_batch.can_allocate(small_line) is True
 
 
 def test_cannot_allocate_if_available_smaller_than_required():
@@ -31,7 +31,7 @@ def test_cannot_allocate_if_available_smaller_than_required():
 def test_can_allocate_if_available_equal_to_required():
     batch, line = make_batch_and_line("ELEGANT-LAMP", 2, 2)
 
-    assert batch.can_allocate(line)
+    assert batch.can_allocate(line) is True
 
 
 def test_can_only_deallocate_allocated_lines():

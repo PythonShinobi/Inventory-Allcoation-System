@@ -1,4 +1,5 @@
 from datetime import date
+from sqlalchemy import text
 
 from app.domain import model
 from app.adapters import repository
@@ -6,21 +7,25 @@ from app.adapters import repository
 
 def insert_order_line(session):
     session.execute(
-        """
-        INSERT INTO order_lines (orderid, sku, qty)
-        VALUES ('order1', 'GENERIC-SOFA', 12)
-        """
+        text(
+            """
+            INSERT INTO order_lines (order_id, sku, qty)
+            VALUES ('order1', 'GENERIC-SOFA', 12)
+            """
+        )
     )
 
     [[orderline_id]] = session.execute(
-        """
-        SELECT id
-        FROM order_lines
-        WHERE orderid=:orderid
-        AND sku=:sku
-        """,
+        text(
+            """
+            SELECT id
+            FROM order_lines
+            WHERE order_id=:order_id
+            AND sku=:sku
+            """
+        ),
         {
-            "orderid": "order1",
+            "order_id": "order1",
             "sku": "GENERIC-SOFA",
         },
     )
@@ -30,10 +35,12 @@ def insert_order_line(session):
 
 def insert_batch(session, reference):
     session.execute(
-        """
-        INSERT INTO batches (reference, sku, _purchased_quantity, eta)
-        VALUES (:reference, 'GENERIC-SOFA', 100, NULL)
-        """,
+        text(
+            """
+            INSERT INTO batches (reference, sku, _purchased_quantity, eta)
+            VALUES (:reference, 'GENERIC-SOFA', 100, NULL)
+            """
+        ),
         {"reference": reference},
     )
 
@@ -51,10 +58,12 @@ def insert_batch(session, reference):
 
 def insert_allocation(session, orderline_id, batch_id):
     session.execute(
-        """
-        INSERT INTO allocations (orderline_id, batch_id)
-        VALUES (:orderline_id, :batch_id)
-        """,
+        text(
+            """
+            INSERT INTO allocations (orderline_id, batch_id)
+            VALUES (:orderline_id, :batch_id)
+            """
+        ),
         {
             "orderline_id": orderline_id,
             "batch_id": batch_id,
@@ -73,10 +82,12 @@ def test_repository_can_save_a_batch(session):
 
     rows = list(
         session.execute(
-            """
-            SELECT reference, sku, _purchased_quantity, eta
-            FROM batches
-            """
+            text(
+                """
+                SELECT reference, sku, _purchased_quantity, eta
+                FROM batches
+                """
+            )
         )
     )
 
