@@ -40,7 +40,7 @@ Example:
         )
 
         batch_ref = services.allocate(
-            line=line,
+            order_line=order_line,
             repo=repository,
             session=session,
         )
@@ -124,7 +124,7 @@ def is_valid_sku(sku, batches) -> bool:
 
 
 def allocate(
-    line: model.OrderLine,
+    order_line: model.OrderLine,
     repo: AbstractRepository,
     session,
 ) -> str:
@@ -170,11 +170,11 @@ def allocate(
     batches = repo.list()
 
     # Validate the requested SKU against that state.
-    if not is_valid_sku(line.sku, batches):
-        raise InvalidSku(f"Invalid sku {line.sku}")
+    if not is_valid_sku(order_line.sku, batches):
+        raise InvalidSku(f"Invalid sku {order_line.sku}")
 
     # Delegate the actual business rule to the domain.
-    batch_ref = model.allocate(line, batches)
+    batch_ref = model.allocate(order_line, batches)
 
     # Persist the successful operation.
     session.commit()

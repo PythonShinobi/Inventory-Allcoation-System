@@ -109,7 +109,7 @@ from sqlalchemy import (
     String,
 )
 
-from app.domain import model
+from app.domain.model import OrderLine
 
 
 # Metadata is SQLAlchemy's container for information about your database schema.
@@ -127,8 +127,8 @@ mapper_registry = registry()
 # The important architectural point is that this table definition
 # exists outside the domain model. OrderLine does not need to know
 # that this table exists.
-order_lines = Table(
-    "order_lines",
+order_lines_table = Table(
+    "order_lines_table",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("order_id", String(255)),
@@ -171,4 +171,4 @@ def start_mappers():
         return
 
     # This tells SQLAlchemy model.OrderLine is represented by the order_lines table.
-    mapper_registry.map_imperatively(model.OrderLine, order_lines)
+    mapper_registry.map_imperatively(OrderLine, order_lines_table)

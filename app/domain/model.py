@@ -281,8 +281,7 @@ class Batch:
         """
 
         return (
-            self.sku == line.sku
-            and self.available_quantity >= line.qty
+            self.sku == line.sku and self.available_quantity >= line.qty
         )
 
     def __eq__(self, other):
@@ -355,7 +354,7 @@ class OutOfStock(Exception):
         super().__init__(f"Out of stock for SKU {sku}")
 
 
-def allocate(line: OrderLine, batches: List[Batch]) -> str:
+def allocate(order_line: OrderLine, batches: List[Batch]) -> str:
     """
     Allocate an order line to the most suitable available batch.
 
@@ -409,12 +408,12 @@ def allocate(line: OrderLine, batches: List[Batch]) -> str:
         batch = next(
             b
             for b in sorted(batches)
-            if b.can_allocate(line)
+            if b.can_allocate(order_line)
         )
 
     except StopIteration:
-        raise OutOfStock(line.sku)
+        raise OutOfStock(order_line.sku)
 
-    batch.allocate(line)
+    batch.allocate(order_line)
 
     return batch.reference

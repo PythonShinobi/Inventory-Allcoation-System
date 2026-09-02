@@ -39,7 +39,7 @@ the abstraction rather than on a specific persistence technology.
 For example, the service layer can declare::
 
     def allocate(
-        line: model.OrderLine,
+        order_line: model.OrderLine,
         repo: AbstractRepository,
         session,
     ):
@@ -53,7 +53,7 @@ Production example::
     session = get_session()
     repo = SqlAlchemyRepository(session)
 
-    services.allocate(line, repo, session)
+    services.allocate(order_line, repo, session)
 
 Testing example::
 
@@ -66,7 +66,7 @@ Testing example::
 
     repo = FakeRepository([batch])
 
-    services.allocate(line, repo, FakeSession())
+    services.allocate(order_line, repo, FakeSession())
 
 This allows service-layer tests to run without a real database.
 
@@ -92,7 +92,7 @@ with domain objects.
 
 from abc import ABC, abstractmethod
 
-from app.domain import model
+from app.domain.model import Batch
 
 
 class AbstractRepository(ABC):
@@ -114,13 +114,13 @@ class AbstractRepository(ABC):
 
     Example::
 
-        def allocate(line, repo: AbstractRepository, session):
+        def allocate(order_line, repo: AbstractRepository, session):
             batches = repo.list()
             ...
     """
 
     @abstractmethod
-    def add(self, batch: model.Batch):
+    def add(self, batch: Batch):
         """
         Store a Batch in the repository.
 
@@ -130,7 +130,7 @@ class AbstractRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get(self, reference: str) -> model.Batch:
+    def get(self, reference: str) -> Batch:
         """
         Retrieve a Batch by its unique reference.
 
@@ -143,7 +143,7 @@ class AbstractRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list(self) -> list[model.Batch]:
+    def list(self) -> list[Batch]:
         """
         Return all batches available through the repository.
 
@@ -178,7 +178,7 @@ class SqlAlchemyRepository(AbstractRepository):
     def __init__(self, session):
         self.session = session
 
-    def add(self, batch: model.Batch):
+    def add(self, batch: Batch):
         """
         Add a Batch to the SQLAlchemy session.
 
@@ -189,7 +189,7 @@ class SqlAlchemyRepository(AbstractRepository):
 
         self.session.add(batch)
 
-    def get(self, reference: str) -> model.Batch:
+    def get(self, reference: str) -> Batch:
         """
         Retrieve a Batch from the database by its reference.
 
@@ -206,12 +206,12 @@ class SqlAlchemyRepository(AbstractRepository):
 
         return (
             self.session
-            .query(model.Batch)
+            .query(Batch)
             .filter_by(reference=reference)
             .one()
         )
 
-    def list(self) -> list[model.Batch]:
+    def list(self) -> list[Batch]:
         """
         Retrieve all batches from the database.
 
@@ -219,7 +219,7 @@ class SqlAlchemyRepository(AbstractRepository):
             A list of Batch objects.
         """
 
-        return self.session.query(model.Batch).all()
+        return self.session.query(Batch).all()
 
 
 class FakeRepository(AbstractRepository):
@@ -253,7 +253,7 @@ class FakeRepository(AbstractRepository):
     def __init__(self, batches):
         self._batches = set(batches)
 
-    def add(self, batch: model.Batch):
+    def add(self, batch: Batch):
         """
         Add a Batch to the in-memory collection.
 
@@ -263,7 +263,7 @@ class FakeRepository(AbstractRepository):
 
         self._batches.add(batch)
 
-    def get(self, reference: str) -> model.Batch:
+    def get(self, reference: str) -> Batch:
         """
         Retrieve a Batch from the in-memory collection.
 
@@ -284,7 +284,7 @@ class FakeRepository(AbstractRepository):
             if batch.reference == reference
         )
 
-    def list(self) -> list[model.Batch]:
+    def list(self) -> list[Batch]:
         """
         Return all batches stored in memory.
 

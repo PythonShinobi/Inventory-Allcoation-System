@@ -29,18 +29,18 @@ def allocate_endpoint():
     batches = repository.SqlAlchemyRepository(session).list()
 
     # Create an order line.
-    line = model.OrderLine(
+    order_line = model.OrderLine(
         order_id=request.json["order_id"],
         sku=request.json["sku"],
         qty=request.json["qty"]
     )
 
-    if not services.is_valid_sku(line.sku, batches):
-        return jsonify({"message": f"Invalid sku {line.sku}"}), 400
+    if not services.is_valid_sku(order_line.sku, batches):
+        return jsonify({"message": f"Invalid sku {order_line.sku}"}), 400
 
     try:
         # Allocate this order line against these batches.
-        batch_ref = model.allocate(line, batches)
+        batch_ref = model.allocate(order_line, batches)
         
     except model.OutOfStock as e:
         return jsonify({"message": str(e)}), 400
