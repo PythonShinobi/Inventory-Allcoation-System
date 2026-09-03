@@ -147,6 +147,13 @@ batches_table = Table(
 )
 
 
+allocations_table = Table(
+    "allocations",
+    metadata,
+    Column("orderline_id", Integer),
+    Column("batch_id", String(255)),
+)
+
 
 def start_mappers():
     """
