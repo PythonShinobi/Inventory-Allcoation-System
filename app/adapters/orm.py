@@ -100,16 +100,16 @@ objects while keeping database concerns outside the domain layer.
 """
 
 from sqlalchemy.orm import registry
-
 from sqlalchemy import (
     MetaData,
     Table,
     Column,
     Integer,
     String,
+    Date
 )
 
-from app.domain.model import OrderLine
+from app.domain.model import OrderLine, Batch
 
 
 # Metadata is SQLAlchemy's container for information about your database schema.
@@ -137,6 +137,17 @@ order_lines_table = Table(
 )
 
 
+batches_table = Table(
+    "batches_table",
+    metadata,
+    Column("reference", String(255), primary_key=True),
+    Column("sku", String(255)),
+    Column("_purchased_quantity", Integer),
+    Column("eta", Date, nullable=True)
+)
+
+
+
 def start_mappers():
     """
     Configure SQLAlchemy mappings between domain objects and tables.
@@ -160,7 +171,7 @@ def start_mappers():
 
         model.OrderLine
                 ↕
-        order_lines table
+        order_lines_table table
 
     Returns:
         None
@@ -172,3 +183,5 @@ def start_mappers():
 
     # This tells SQLAlchemy model.OrderLine is represented by the order_lines table.
     mapper_registry.map_imperatively(OrderLine, order_lines_table)
+
+    mapper_registry.map_imperatively(Batch, batches_table)
