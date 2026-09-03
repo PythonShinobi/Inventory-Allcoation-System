@@ -125,8 +125,7 @@ def is_valid_sku(sku, batches) -> bool:
 
 def allocate(
     order_line: model.OrderLine,
-    repo: AbstractRepository,
-    session,
+    uow,
 ) -> str:
     """
     Orchestrate the inventory allocation use case.
@@ -167,7 +166,7 @@ def allocate(
     """
 
     # Get the current inventory state.
-    batches = repo.list()
+    batches = uow.batches.list()
 
     # Validate the requested SKU against that state.
     if not is_valid_sku(order_line.sku, batches):
@@ -177,6 +176,6 @@ def allocate(
     batch_ref = model.allocate(order_line, batches)
 
     # Persist the successful operation.
-    session.commit()
+    uow.commit()
 
     return batch_ref

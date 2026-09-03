@@ -9,7 +9,7 @@ def insert_order_line(session):
     session.execute(
         text(
             """
-            INSERT INTO order_lines (order_id, sku, qty)
+            INSERT INTO order_lines_table (order_id, sku, qty)
             VALUES ('order1', 'GENERIC-SOFA', 12)
             """
         )
@@ -19,7 +19,7 @@ def insert_order_line(session):
         text(
             """
             SELECT id
-            FROM order_lines
+            FROM order_lines_table
             WHERE order_id=:order_id
             AND sku=:sku
             """
@@ -37,7 +37,7 @@ def insert_batch(session, reference):
     session.execute(
         text(
             """
-            INSERT INTO batches (reference, sku, _purchased_quantity, eta)
+            INSERT INTO batches_table (reference, sku, _purchased_quantity, eta)
             VALUES (:reference, 'GENERIC-SOFA', 100, NULL)
             """
         ),
@@ -45,11 +45,13 @@ def insert_batch(session, reference):
     )
 
     [[batch_id]] = session.execute(
-        """
-        SELECT id
-        FROM batches
-        WHERE reference=:reference
-        """,
+        text(
+            """
+            SELECT reference
+            FROM batches_table
+            WHERE reference=:reference
+            """
+        ),
         {"reference": reference},
     )
 
@@ -85,7 +87,7 @@ def test_repository_can_save_a_batch(session):
             text(
                 """
                 SELECT reference, sku, _purchased_quantity, eta
-                FROM batches
+                FROM batches_table
                 """
             )
         )

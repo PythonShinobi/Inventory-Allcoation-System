@@ -1,12 +1,13 @@
 import time
 import threading
+from datetime import date
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, clear_mappers
 
-from app.adapters import orm
 from app.domain import model
+from app.adapters import orm
 from app.adapters.repository import SqlAlchemyRepository
 
 
@@ -22,21 +23,20 @@ def start_mappers():
 # Database
 # ---------------------------------------------------------------------------
 
-@pytest.fixture
-def session():
-    """
-    Provide a fresh SQLAlchemy session backed by an in-memory SQLite database.
-    """
 
+@pytest.fixture
+def session_factory():
     engine = create_engine("sqlite:///:memory:")
 
+    orm.start_mappers()
     orm.metadata.create_all(engine)
-    
-    Session = sessionmaker(bind=engine)
 
-    with Session() as session:
-        yield session
+    return sessionmaker(bind=engine)
 
+
+@pytest.fixture
+def session(session_factory):
+    return session_factory()
 
 # ---------------------------------------------------------------------------
 # Inventory setup
@@ -59,9 +59,11 @@ def add_stock(session):
     """
 
     def add_stock_to_database(batches):
-        repository = SqlAlchemyRepository(session)
+        repository = SqlAlchemyRepository(session)        
 
         for reference, sku, quantity, eta in batches:
+            eta = date.fromisoformat(eta) if eta else None
+            
             batch = model.Batch(
                 ref=reference,
                 sku=sku,

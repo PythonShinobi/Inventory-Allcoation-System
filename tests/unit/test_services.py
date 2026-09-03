@@ -1,8 +1,8 @@
 import pytest
 
 from app.domain import model
-from app.service_layer import services
 from app.adapters import repository
+from app.service_layer import services, unit_of_work
 
 
 class FakeRepository(repository.AbstractRepository):
@@ -23,12 +23,17 @@ class FakeRepository(repository.AbstractRepository):
         return list(self._batches)
 
 
-class FakeSession:
+class FakeUnitOfWork(unit_of_work.AbstractUnitOfWork):
 
-    committed = False
+    def __init__(self):
+        self.batches = FakeRepository([])
+        self.committed = False
 
     def commit(self):
         self.committed = True
+
+    def rollback(self):
+        pass
 
 
 def test_returns_allocation():
@@ -45,12 +50,12 @@ def test_returns_allocation():
         eta=None,
     )
 
-    repo = FakeRepository([batch])
+    uow = FakeUnitOfWork()
+    uow.batches = FakeRepository([batch])
 
     result = services.allocate(
         line,
-        repo,
-        FakeSession(),
+        uow,
     )
 
     assert result == "b1"
@@ -70,7 +75,8 @@ def test_error_for_invalid_sku():
         eta=None,
     )
 
-    repo = FakeRepository([batch])
+    uow = FakeUnitOfWork()
+    uow.batches = FakeRepository([batch])
 
     with pytest.raises(
         services.InvalidSku,
@@ -78,8 +84,7 @@ def test_error_for_invalid_sku():
     ):
         services.allocate(
             line,
-            repo,
-            FakeSession(),
+            uow,
         )
 
 
@@ -97,16 +102,15 @@ def test_commits():
         eta=None,
     )
 
-    repo = FakeRepository([batch])
-    session = FakeSession()
+    uow = FakeUnitOfWork()
+    uow.batches = FakeRepository([batch])
 
     services.allocate(
         line,
-        repo,
-        session,
+        uow,
     )
 
-    assert session.committed is True
+    assert uow.committed is True
 
 
 def test_error_for_out_of_stock():
@@ -123,7 +127,8 @@ def test_error_for_out_of_stock():
         eta=None,
     )
 
-    repo = FakeRepository([batch])
+    uow = FakeUnitOfWork()
+    uow.batches = FakeRepository([batch])
 
     with pytest.raises(
         model.OutOfStock,
@@ -131,6 +136,5 @@ def test_error_for_out_of_stock():
     ):
         services.allocate(
             line,
-            repo,
-            FakeSession(),
+            uow,
         )

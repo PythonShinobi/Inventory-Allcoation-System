@@ -99,14 +99,15 @@ The repository uses these mappings to persist and retrieve domain
 objects while keeping database concerns outside the domain layer.
 """
 
-from sqlalchemy.orm import registry
+from sqlalchemy.orm import registry, relationship
 from sqlalchemy import (
     MetaData,
     Table,
     Column,
     Integer,
     String,
-    Date
+    Date,
+    ForeignKey
 )
 
 from app.domain.model import OrderLine, Batch
@@ -150,10 +151,17 @@ batches_table = Table(
 allocations_table = Table(
     "allocations",
     metadata,
-    Column("orderline_id", Integer),
-    Column("batch_id", String(255)),
+    Column(
+        "orderline_id",
+        Integer,
+        ForeignKey("order_lines_table.id"),
+    ),
+    Column(
+        "batch_id",
+        String(255),
+        ForeignKey("batches_table.reference"),
+    ),
 )
-
 
 def start_mappers():
     """
@@ -191,4 +199,14 @@ def start_mappers():
     # This tells SQLAlchemy model.OrderLine is represented by the order_lines table.
     mapper_registry.map_imperatively(OrderLine, order_lines_table)
 
-    mapper_registry.map_imperatively(Batch, batches_table)
+    mapper_registry.map_imperatively(
+        Batch,
+        batches_table,
+        properties={
+            "_allocations": relationship(
+                OrderLine,
+                secondary=allocations_table,
+                collection_class=set,
+            )
+        },
+    )

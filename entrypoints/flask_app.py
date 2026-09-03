@@ -20,6 +20,7 @@ get_session = sessionmaker(bind=engine)  # Creates a factory for database sessio
 
 app = Flask(__name__)  # Create a flask application
 
+
 @app.route("/allocate", methods=["POST"])
 def allocate_endpoint():
     # Create a database session.
