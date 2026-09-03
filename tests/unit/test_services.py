@@ -1,3 +1,12 @@
+"""
+Unit tests for the application service layer.
+
+A unit test tests one small piece of a program in isolation.
+
+These tests use fake implementations of the repository and Unit of Work
+so that the service layer can be tested without connecting to a database.
+"""
+
 import pytest
 
 from app.domain import model
@@ -6,7 +15,6 @@ from app.service_layer import services, unit_of_work
 
 
 class FakeRepository(repository.AbstractRepository):
-
     def __init__(self, batches):
         self._batches = set(batches)
 
@@ -24,7 +32,6 @@ class FakeRepository(repository.AbstractRepository):
 
 
 class FakeUnitOfWork(unit_of_work.AbstractUnitOfWork):
-
     def __init__(self):
         self.batches = FakeRepository([])
         self.committed = False

@@ -1,4 +1,8 @@
-from datetime import date
+"""
+An integration test checks whether multiple parts of your application 
+work correctly together.
+"""
+
 from sqlalchemy import text
 
 from app.domain import model

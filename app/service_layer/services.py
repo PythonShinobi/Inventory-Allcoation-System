@@ -2,17 +2,16 @@
 Application service layer for the inventory allocation system.
 
 This module contains application-level use cases that coordinate
-the domain model with infrastructure such as repositories and
-database sessions.
+the domain model with application infrastructure through a Unit of Work.
 
-The service layer is responsible for orchestration. It retrieves
-the current state of the application from a repository, performs
+The service layer is responsible for orchestration. It retrieves the
+current state of the application through the Unit of Work, performs
 application-level validation, delegates business decisions to the
-domain model, and persists successful changes.
+domain model, and commits successful changes.
 
 It does not contain the core inventory business rules. Those rules
-belong in ``app.domain.model``. It also does not handle HTTP,
-JSON, or Flask-specific concerns.
+belong in ``app.domain.model``. It also does not handle HTTP, JSON,
+or Flask-specific concerns.
 
 Architecture::
 
@@ -21,77 +20,59 @@ Architecture::
         v
     Service Layer
         |
-        +------> Repository
+        v
+    Abstract Unit of Work
         |
-        +------> Domain Model
+        +------> Repository
         |
         +------> Database Session
         |
         v
     Result
 
-Example:
-    Allocate an order line against the current inventory::
-
-        line = model.OrderLine(
-            orderid="order-001",
-            sku="LAMP-001",
-            qty=10,
-        )
-
-        batch_ref = services.allocate(
-            order_line=order_line,
-            repo=repository,
-            session=session,
-        )
-
-    The service layer will:
-
-    1. Retrieve batches from the repository.
-    2. Verify that the requested SKU exists.
-    3. Delegate batch selection and allocation to the domain model.
-    4. Commit the successful operation.
-    5. Return the allocated batch reference.
-
-The service layer depends on ``AbstractRepository`` rather than a
-specific database implementation. This allows the same use case to
-work with a real repository in production and a ``FakeRepository``
-during unit tests.
-
 Typical flow::
 
     allocate()
         |
-        +-- repo.list()
+        +-- uow.batches.list()
         |
         +-- is_valid_sku()
         |
         +-- model.allocate()
         |
-        +-- session.commit()
+        +-- uow.commit()
         |
         +-- return batch reference
 
+The service layer depends on ``AbstractUnitOfWork`` rather than on a
+specific database session or repository implementation. This keeps
+the service layer independent of the persistence technology and makes
+the use cases easier to test.
+
 Exceptions:
+
     InvalidSku:
-        Raised when the requested SKU does not exist in the
-        inventory state returned by the repository.
+        Raised when the requested SKU does not exist in the current
+        inventory state.
 
     model.OutOfStock:
-        Raised by the domain model when no batch can satisfy
-        the requested order line.
+        Raised by the domain model when no batch can satisfy the
+        requested order line.
 
 See Also:
+
     app.domain.model:
-        Contains the domain entities, value objects, and core
-        inventory allocation rules.
+        Contains the domain entities and core inventory allocation rules.
+
+    app.service_layer.unit_of_work:
+        Defines the Unit of Work abstraction used by this service layer.
 
     app.adapters.repository:
-        Defines the repository abstraction used by this service layer.
+        Contains repository implementations used by the Unit of Work.
 """
 
 from app.domain import model
-from app.adapters.repository import AbstractRepository
+from app.service_layer import unit_of_work
 
 
 class InvalidSku(Exception):
@@ -111,9 +92,11 @@ def is_valid_sku(sku, batches) -> bool:
     Return True if the SKU exists in the available batches.
 
     Args:
-        sku: The SKU to validate.
-        batches: An iterable of Batch objects representing current
-            inventory.
+        sku:
+            The SKU to validate.
+
+        batches:
+            An iterable of Batch objects representing current inventory.
 
     Returns:
         True if at least one batch contains the requested SKU;
@@ -125,20 +108,23 @@ def is_valid_sku(sku, batches) -> bool:
 
 def allocate(
     order_line: model.OrderLine,
-    uow,
+    uow: unit_of_work.AbstractUnitOfWork,
 ) -> str:
     """
     Orchestrate the inventory allocation use case.
 
-    The service retrieves the current inventory from the repository,
-    validates that the requested SKU exists, delegates the actual
-    allocation decision to the domain model, commits the successful
-    operation, and returns the allocated batch reference.
+    The service retrieves the current inventory through the Unit of Work,
+    validates that the requested SKU exists, delegates the allocation
+    decision to the domain model, commits the successful operation,
+    and returns the allocated batch reference.
 
     Args:
-        line: The order line that needs to be allocated.
-        repo: Repository abstraction used to retrieve inventory.
-        session: Database session used to commit the operation.
+        order_line:
+            The order line that needs to be allocated.
+
+        uow:
+            Unit of Work that provides access to repositories and
+            controls the transaction.
 
     Returns:
         The reference of the batch to which the order line was allocated.
@@ -151,28 +137,20 @@ def allocate(
             If the SKU exists but no batch has sufficient available
             quantity to satisfy the order line.
 
-    Example:
-        >>> line = model.OrderLine("order-001", "LAMP-001", 10)
-        >>> batch = model.Batch("batch-001", "LAMP-001", 100, eta=None)
-        >>> repo = FakeRepository([batch])
-        >>> session = FakeSession()
-        >>> allocate(line, repo, session)
-        'batch-001'
-
     Note:
         This function coordinates the use case but does not implement
         the core allocation rules. Batch selection and allocation
         remain the responsibility of the domain model.
     """
 
-    # Get the current inventory state.
+    # Get the current inventory state through the Unit of Work.
     batches = uow.batches.list()
 
     # Validate the requested SKU against that state.
     if not is_valid_sku(order_line.sku, batches):
         raise InvalidSku(f"Invalid sku {order_line.sku}")
 
-    # Delegate the actual business rule to the domain.
+    # Delegate the actual business rule to the domain model.
     batch_ref = model.allocate(order_line, batches)
 
     # Persist the successful operation.

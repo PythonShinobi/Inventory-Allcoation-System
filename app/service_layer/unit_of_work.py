@@ -6,7 +6,10 @@ from app.adapters import repository
 class AbstractUnitOfWork(ABC):
 
     # A UoW provides access to the batch repository.
-    batches: repository.AbstractRepository
+    # Every Unit of Work has a batches attribute, and whatever 
+    # repository is stored there must behave according to the 
+    # AbstractRepository interface.
+    batches: repository.AbstractRepository  # Type Annotation
 
     # When the with block starts, give the code the UoW.
     def __enter__(self):
@@ -32,7 +35,9 @@ class SQLAlchemyUnitOfWork(AbstractUnitOfWork):
 
     def __enter__(self):
         self.session = self.session_factory()
+
         self.batches = repository.SqlAlchemyRepository(self.session)
+
         return super().__enter__()
 
     def __exit__(self, *args):

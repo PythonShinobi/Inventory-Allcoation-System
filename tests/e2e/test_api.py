@@ -1,3 +1,35 @@
+"""
+An E2E test checks your application from the outside, through the same interface a 
+real user or external client would use, all the way through the system to the database 
+and back. An E2E test exercises that whole path.
+
+Client
+  │
+  │ HTTP POST /allocate
+  ▼
+Flask API
+  │
+  ▼
+Service Layer
+  │
+  ▼
+Domain Model
+  │
+  ▼
+Repository
+  │
+  ▼
+Database
+  │
+  │ result
+  ▼
+Flask API
+  │
+  │ HTTP 201
+  ▼
+Client
+"""
+
 import pytest
 import requests
 
