@@ -225,18 +225,18 @@ class Batch:
         if self.can_allocate(line):
             self._allocations.add(line)
 
-    def deallocate(self, line: OrderLine):
+    def deallocate(self, order_line: OrderLine):
         """
         Remove an order line from this batch if it is allocated.
 
         If the order line is not currently allocated, nothing happens.
 
         Args:
-            line: The order line to remove from the allocation.
+            order_ine: The order line to remove from the allocation.
         """
 
-        if line in self._allocations:
-            self._allocations.remove(line)
+        if order_line in self._allocations:
+            self._allocations.remove(order_line)
 
     @property
     def allocated_quantity(self) -> int:
@@ -263,7 +263,7 @@ class Batch:
 
         return self._purchased_quantity - self.allocated_quantity
 
-    def can_allocate(self, line: OrderLine) -> bool:
+    def can_allocate(self, order_line: OrderLine) -> bool:
         """
         Determine whether this batch can satisfy an order line.
 
@@ -273,7 +273,7 @@ class Batch:
         2. The batch has enough available quantity.
 
         Args:
-            line: The order line being evaluated.
+            order_line: The order line being evaluated.
 
         Returns:
             True if the batch can satisfy the order line,
@@ -281,7 +281,8 @@ class Batch:
         """
 
         return (
-            self.sku == line.sku and self.available_quantity >= line.qty
+            self.sku == order_line.sku and 
+            self.available_quantity >= order_line.qty
         )
 
     def __eq__(self, other):

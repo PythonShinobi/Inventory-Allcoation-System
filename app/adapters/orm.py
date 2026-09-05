@@ -115,6 +115,8 @@ from app.domain.model import OrderLine, Batch
 
 # Metadata is SQLAlchemy's container for information about your database schema.
 # Think of it as a Python object that holds descriptions of your tables.
+# It gives SQLAlchemy a central collection of table definitions.
+# It is essentially a description of the database structure.
 metadata = MetaData()
 
 
@@ -130,7 +132,7 @@ mapper_registry = registry()
 # that this table exists.
 order_lines_table = Table(
     "order_lines_table",
-    metadata,
+    metadata,  # Create this table definition and register it with this metadata object.
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("order_id", String(255)),
     Column("sku", String(255)),
@@ -140,7 +142,7 @@ order_lines_table = Table(
 
 batches_table = Table(
     "batches_table",
-    metadata,
+    metadata,  # Create this table definition and register it with this metadata object.
     Column("reference", String(255), primary_key=True),
     Column("sku", String(255)),
     Column("_purchased_quantity", Integer),
@@ -150,7 +152,7 @@ batches_table = Table(
 
 allocations_table = Table(
     "allocations",
-    metadata,
+    metadata,  # Create this table definition and register it with this metadata object.
     Column(
         "orderline_id",
         Integer,
@@ -163,12 +165,13 @@ allocations_table = Table(
     ),
 )
 
+
 def start_mappers():
     """
     Configure SQLAlchemy mappings between domain objects and tables.
 
     This function tells SQLAlchemy that ``model.OrderLine`` should be
-    persisted using the ``order_lines`` table.
+    persisted using the ``order_lines_table`` table.
 
     The mapping is configured imperatively rather than by placing
     SQLAlchemy-specific declarations directly on the domain class.
