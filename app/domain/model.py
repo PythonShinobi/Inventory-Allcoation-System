@@ -232,7 +232,7 @@ class Batch:
         If the order line is not currently allocated, nothing happens.
 
         Args:
-            order_ine: The order line to remove from the allocation.
+            order_line: The order line to remove from the allocation.
         """
 
         if order_line in self._allocations:
@@ -247,10 +247,7 @@ class Batch:
         allocated order lines.
         """
 
-        return sum(
-            line.qty
-            for line in self._allocations
-        )
+        return sum(line.qty for line in self._allocations)
 
     @property
     def available_quantity(self) -> int:
@@ -327,6 +324,7 @@ class Batch:
             3. Later incoming shipments
         """
 
+        # The batch is in stock.
         if self.eta is None:
             return True
 
@@ -353,6 +351,27 @@ class OutOfStock(Exception):
 
     def __init__(self, sku):
         super().__init__(f"Out of stock for SKU {sku}")
+
+
+class Product:
+    def __init__(self, sku: str, batches: List[Batch]):
+        self.sku = sku
+        self.batches = batches
+
+    def allocate(self, line: OrderLine) -> str:
+        try:
+            batch = next(
+                b
+                for b in sorted(self.batches)
+                if b.can_allocate(line)
+            )
+
+            batch.allocate(line)
+            
+            return batch.reference
+        
+        except StopIteration:
+            raise OutOfStock(line.sku)
 
 
 def allocate(order_line: OrderLine, batches: List[Batch]) -> str:

@@ -117,6 +117,7 @@ class SQLAlchemyUnitOfWork(AbstractUnitOfWork):
             The active Unit of Work instance.
         """
 
+        # Create session → create repository → return self
         self.session = self.session_factory()
 
         self.batches = repository.SqlAlchemyRepository(self.session)

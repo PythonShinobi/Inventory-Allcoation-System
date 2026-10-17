@@ -18,7 +18,7 @@ orm.start_mappers()
 engine = create_engine(config.get_postgres_uri())  # Creates the infrastructure that SQLAlchemy uses to communicate with the database.
 get_session = sessionmaker(bind=engine)  # Creates a factory for database sessions.
 
-app = Flask(__name__)  # Create a flask application
+app = Flask("entrypoints/flask_app.py")  # Create a flask application
 
 
 @app.route("/allocate", methods=["POST"])
@@ -36,6 +36,7 @@ def allocate_endpoint():
         qty=request.json["qty"]
     )
 
+    # Checks if the SKU for batch and orderline are the same.
     if not services.is_valid_sku(order_line.sku, batches):
         return jsonify({"message": f"Invalid sku {order_line.sku}"}), 400
 
