@@ -71,6 +71,9 @@ See Also:
         Contains repository implementations used by the Unit of Work.
 """
 
+from datetime import date
+from typing import Optional
+
 from app.domain import model
 from app.service_layer import unit_of_work
 
@@ -106,54 +109,41 @@ def is_valid_sku(sku, batches) -> bool:
     return sku in {batch.sku for batch in batches}
 
 
+def add_batch(
+    ref: str,
+    sku: str,
+    qty: int,
+    eta: Optional[date],
+    uow: unit_of_work.AbstractUnitOfWork
+):
+    """Add a batch to an existing product or create a new product."""
+
+    with uow:
+        product = uow.products.get(sku)
+
+        # Create Product aggregate if it does not exist.
+        if product is None:
+            product = model.Product(sku, batches=[])
+            uow.products.add(product)
+
+        # Create Batch and it to the newly created Product aggregate.
+        product.batches.append(model.Batch(ref, sku, qty, eta))
+
+
 def allocate(
     order_line: model.OrderLine,
-    uow: unit_of_work.AbstractUnitOfWork,
+    uow: unit_of_work.AbstractUnitOfWork
 ) -> str:
-    """
-    Orchestrate the inventory allocation use case.
+    """Allocate an order line through its Product aggregrate."""
 
-    The service retrieves the current inventory through the Unit of Work,
-    validates that the requested SKU exists, delegates the allocation
-    decision to the domain model, commits the successful operation,
-    and returns the allocated batch reference.
+    with uow:
+        product = uow.products.get(order_line.sku)
 
-    Args:
-        order_line:
-            The order line that needs to be allocated.
+        if product is None:
+            raise InvalidSku(f"Invalid sku {order_line.sku}")
 
-        uow:
-            Unit of Work that provides access to repositories and
-            controls the transaction.
+        batch_ref = product.allocate(order_line)  # Applies the domain rules to the product's batches.
 
-    Returns:
-        The reference of the batch to which the order line was allocated.
+        uow.commit()
 
-    Raises:
-        InvalidSku:
-            If the requested SKU does not exist in the current inventory.
-
-        model.OutOfStock:
-            If the SKU exists but no batch has sufficient available
-            quantity to satisfy the order line.
-
-    Note:
-        This function coordinates the use case but does not implement
-        the core allocation rules. Batch selection and allocation
-        remain the responsibility of the domain model.
-    """
-
-    # Get the current inventory state through the Unit of Work.
-    batches = uow.batches.list()
-
-    # Validate the requested SKU against that state.
-    if not is_valid_sku(order_line.sku, batches):
-        raise InvalidSku(f"Invalid sku {order_line.sku}")
-
-    # Delegate the actual business rule to the domain model.
-    batch_ref = model.allocate(order_line, batches)
-
-    # Persist the successful operation.
-    uow.commit()
-
-    return batch_ref
+        return batch_ref
