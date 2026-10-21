@@ -354,11 +354,68 @@ class OutOfStock(Exception):
 
 
 class Product:
+    """
+    Represents a product and its associated inventory batches.
+
+    Product is an aggregate root responsible for coordinating
+    allocation across its batches. It ensures that an order line
+    belongs to the product's SKU and delegates batch selection
+    and allocation to the appropriate domain objects.
+
+    Attributes:
+        sku:
+            The unique Stock Keeping Unit (SKU) identifying
+            this product.
+
+        batches:
+            The collection of inventory batches associated
+            with this product.
+
+    Example:
+        product = Product(
+            sku="LAMP-001",
+            batches=[batch],
+        )
+
+        batch_ref = product.allocate(order_line)
+    """
+
     def __init__(self, sku: str, batches: List[Batch]):
         self.sku = sku
         self.batches = batches
 
     def allocate(self, line: OrderLine) -> str:
+        """
+        Allocate an order line to the most suitable batch.
+
+        The order line must have the same SKU as the product.
+        Eligible batches are considered in priority order:
+        inventory already in stock first, followed by incoming
+        shipments with the earliest expected arrival dates.
+
+        Args:
+            line:
+                The order line to allocate to a batch.
+
+        Returns:
+            The reference of the batch that receives the allocation.
+
+        Raises:
+            OutOfStock:
+                If the order line's SKU does not match this product,
+                or no batch has sufficient available inventory.
+
+        Example:
+            batch_ref = product.allocate(order_line)
+
+        This method coordinates allocation within the Product
+        aggregate. Each Batch determines whether it can satisfy
+        the order line and records the allocation when successful.
+        """
+
+        if line.sku != self.sku:
+            raise OutOfStock(line.sku)
+
         try:
             batch = next(
                 b
@@ -367,73 +424,9 @@ class Product:
             )
 
             batch.allocate(line)
-            
+
             return batch.reference
-        
+
         except StopIteration:
             raise OutOfStock(line.sku)
 
-
-def allocate(order_line: OrderLine, batches: List[Batch]) -> str:
-    """
-    Allocate an order line to the most suitable available batch.
-
-    Batches are considered in allocation priority order:
-
-        1. Inventory already in stock.
-        2. Incoming inventory with the earliest ETA.
-
-    The first batch that can satisfy the order line is allocated.
-
-    Args:
-        line: The customer order line to allocate.
-        batches: Available inventory batches.
-
-    Returns:
-        The reference of the batch that received the allocation.
-
-    Raises:
-        OutOfStock:
-            If no batch can satisfy the order line.
-
-    Example::
-
-        line = OrderLine(
-            order_id="order-001",
-            sku="LAMP-001",
-            qty=10,
-        )
-
-        batch = Batch(
-            ref="batch-001",
-            sku="LAMP-001",
-            qty=100,
-            eta=None,
-        )
-
-        result = allocate(line, [batch])
-
-        assert result == "batch-001"
-        assert batch.available_quantity == 90
-
-    The function uses ``Batch.can_allocate()`` to determine whether
-    a batch can satisfy the request and ``Batch.allocate()`` to
-    perform the state change.
-
-    The function itself does not interact with the database or
-    infrastructure. It operates entirely on domain objects.
-    """
-
-    try:
-        batch = next(
-            b
-            for b in sorted(batches)
-            if b.can_allocate(order_line)
-        )
-
-    except StopIteration:
-        raise OutOfStock(order_line.sku)
-
-    batch.allocate(order_line)
-
-    return batch.reference

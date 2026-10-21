@@ -128,6 +128,8 @@ def add_batch(
 
         # Create Batch and it to the newly created Product aggregate.
         product.batches.append(model.Batch(ref, sku, qty, eta))
+        
+        uow.commit()
 
 
 def allocate(

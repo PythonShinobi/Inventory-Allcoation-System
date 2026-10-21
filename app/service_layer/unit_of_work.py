@@ -22,6 +22,8 @@ class AbstractUnitOfWork(ABC):
 
     @abstractmethod
     def rollback(self) -> None:
+        """Does not undo a transaction that has already been committed. 
+        The committed data remains saved."""
         raise NotImplementedError
 
 
