@@ -1,206 +1,100 @@
+
 """
 SQLAlchemy ORM mappings for the inventory allocation system.
 
-This module defines the database schema and the mappings between
-database tables and domain model classes.
-
-Its main responsibility is to translate between two different worlds:
-
-    Domain Model
-        |
-        | mapping
-        v
-    Database Tables
-
-The domain model contains business concepts and rules and should not
-depend on SQLAlchemy or any other persistence technology.
-
-This module is therefore part of the infrastructure layer. It knows
-about both SQLAlchemy and the domain classes and provides the mapping
-that connects them.
-
-Architecture::
-
-    Domain Model
-        |
-        | OrderLine
-        v
-    ORM Mapping
-        |
-        | SQLAlchemy
-        v
-    Database
-
-The domain model remains independent::
-
-    model.OrderLine
-        |
-        X  does not import SQLAlchemy
-
-while this module knows about both::
-
-    orm.py
-        |
-        +--> SQLAlchemy
-        |
-        +--> domain.model.OrderLine
-
-Database schema:
-
-    order_lines
-    ├── id
-    ├── order_id
-    ├── sku
-    └── qty
-
-The ``order_lines`` table stores the persistent representation of
-the domain model's ``OrderLine`` value object.
-
-The ``start_mappers()`` function configures SQLAlchemy so that an
-``OrderLine`` object can be loaded from and persisted to the
-``order_lines`` table.
-
-Example::
-
-    from app.domain import model
-    from app.adapters import orm
-
-    orm.start_mappers()
-
-    line = model.OrderLine(
-        order_id="order-001",
-        sku="LAMP-001",
-        qty=10,
-    )
-
-    # SQLAlchemy can now map the domain object to the
-    # corresponding database representation.
-
-Responsibilities::
-
-    - Define database tables.
-    - Define database columns.
-    - Configure SQLAlchemy mappings.
-    - Connect domain objects to their persistent representation.
-
-Non-responsibilities::
-
-    - Implementing inventory business rules.
-    - Deciding whether a batch can be allocated.
-    - Handling HTTP requests.
-    - Coordinating application use cases.
-    - Implementing repository operations.
-
-Architectural role::
-
-    Infrastructure / Data Mapping
-
-The repository uses these mappings to persist and retrieve domain
-objects while keeping database concerns outside the domain layer.
+This module defines database tables and maps them to domain classes.
+The domain model remains independent of SQLAlchemy.
 """
 
-from sqlalchemy.orm import registry, relationship
 from sqlalchemy import (
-    MetaData,
-    Table,
     Column,
-    Integer,
-    String,
     Date,
-    ForeignKey
+    ForeignKey,
+    Integer,
+    MetaData,
+    String,
+    Table,
 )
+from sqlalchemy.orm import registry, relationship
 
-from app.domain.model import OrderLine, Batch
+from app.domain.model import OrderLine, Batch, Product
 
 
-# Metadata is SQLAlchemy's container for information about your database schema.
-# Think of it as a Python object that holds descriptions of your tables.
-# It gives SQLAlchemy a central collection of table definitions.
-# It is essentially a description of the database structure.
+# Stores the definitions of all database tables.
 metadata = MetaData()
 
-
-# Registry keeps track of which Python classes are mapped
-# to which database tables
+# Registers the mappings between Python classes and database tables.
 mapper_registry = registry()
 
 
-# Defines the database table used to persist OrderLine objects.
-#
-# The important architectural point is that this table definition
-# exists outside the domain model. OrderLine does not need to know
-# that this table exists.
+# OrderLine value objects are stored in this table.
 order_lines_table = Table(
     "order_lines_table",
-    metadata,  # Create this table definition and register it with this metadata object.
+    metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("order_id", String(255)),
-    Column("sku", String(255)),
+    Column("order_id", String(255), nullable=False),
+    Column("sku", String(255), nullable=False),
     Column("qty", Integer, nullable=False),
 )
 
 
-batches_table = Table(
-    "batches_table",
-    metadata,  # Create this table definition and register it with this metadata object.
-    Column("reference", String(255), primary_key=True),
-    Column("sku", String(255)),
-    Column("_purchased_quantity", Integer),
-    Column("eta", Date, nullable=True)
+# Product is the aggregate root for batches belonging to a SKU.
+products_table = Table(
+    "products",
+    metadata,
+    Column("sku", String(255), primary_key=True),
+    Column("version_number", Integer, nullable=False, default=0),
 )
 
 
+# Each batch belongs to a Product.
+batches_table = Table(
+    "batches_table",
+    metadata,
+    Column("reference", String(255), primary_key=True),
+    Column("sku", String(255), ForeignKey("products.sku"), nullable=False),
+    Column("_purchased_quantity", Integer, nullable=False),
+    Column("eta", Date, nullable=True),
+)
+
+
+# Connects allocated order lines to their batches.
 allocations_table = Table(
     "allocations",
-    metadata,  # Create this table definition and register it with this metadata object.
-    Column(
-        "orderline_id",
-        Integer,
-        ForeignKey("order_lines_table.id"),
-    ),
-    Column(
-        "batch_id",
-        String(255),
-        ForeignKey("batches_table.reference"),
-    ),
+    metadata,
+    Column("orderline_id", Integer, ForeignKey("order_lines_table.id"), primary_key=True),
+    Column("batch_id", String(255), ForeignKey("batches_table.reference"), primary_key=True),
 )
 
 
 def start_mappers():
     """
-    Configure SQLAlchemy mappings between domain objects and tables.
+    Configure the SQLAlchemy mappings once.
 
-    This function tells SQLAlchemy that ``model.OrderLine`` should be
-    persisted using the ``order_lines_table`` table.
+    Product is the aggregate root. Its batches are loaded through
+    the Product.batches relationship.
 
-    The mapping is configured imperatively rather than by placing
-    SQLAlchemy-specific declarations directly on the domain class.
-
-    This keeps the domain model independent of the ORM.
-
-    Example::
-
-        from app.adapters import orm
-
-        orm.start_mappers()
-
-    After the mapper is configured, SQLAlchemy knows how to translate
-    between:
-
-        model.OrderLine
-                ↕
-        order_lines_table table
-
-    Returns:
-        None
+    Product.version_number is used for optimistic concurrency control.
+    The domain model is responsible for incrementing the version when
+    the aggregate changes.
     """
-
-    # If this registry already contains mappings, don't configure them again.
     if mapper_registry.mappers:
         return
 
-    # This tells SQLAlchemy model.OrderLine is represented by the order_lines table.
-    mapper_registry.map_imperatively(OrderLine, order_lines_table)
+    mapper_registry.map_imperatively(
+        OrderLine,
+        order_lines_table,
+    )
+
+    mapper_registry.map_imperatively(
+        Product,
+        products_table,
+        properties={
+            "batches": relationship(Batch),
+        },
+        version_id_col=products_table.c.version_number,
+        version_id_generator=False,
+    )
 
     mapper_registry.map_imperatively(
         Batch,
@@ -210,6 +104,6 @@ def start_mappers():
                 OrderLine,
                 secondary=allocations_table,
                 collection_class=set,
-            )
+            ),
         },
     )
