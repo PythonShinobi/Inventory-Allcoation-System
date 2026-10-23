@@ -125,8 +125,10 @@ def add_batch(
         if product is None:
             product = model.Product(sku, batches=[])
             uow.products.add(product)
+        else:
+            product.version_number += 1
 
-        # Create Batch and it to the newly created Product aggregate.
+        # Create a Batch and add it to the newly created Product aggregate.
         product.batches.append(model.Batch(ref, sku, qty, eta))
         
         uow.commit()
@@ -148,4 +150,4 @@ def allocate(
 
         uow.commit()
 
-        return batch_ref
+    return batch_ref
