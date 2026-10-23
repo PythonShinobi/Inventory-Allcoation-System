@@ -1,5 +1,6 @@
 """Repositories for Product aggregates."""
 
+from sqlalchemy.orm import Session
 from abc import ABC, abstractmethod
 
 from app.domain import model
@@ -15,6 +16,23 @@ class AbstractProductRepository(ABC):
     @abstractmethod
     def get(self, sku: str) -> model.Product | None:
         raise NotImplementedError
+
+
+class SQLAlchemyProductRepository(AbstractProductRepository):
+    """SQLAlchemy repository for Product aggregates."""
+
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, product: model.Product) -> None:
+        self.session.add(product)
+
+    def get(self, sku: str) -> model.Product | None:
+        return (
+            self.session.query(model.Product)
+            .filter_by(sku=sku)
+            .first()
+        )
 
 
 class FakeRepository(AbstractProductRepository):
