@@ -15,12 +15,14 @@ def allocate_endpoint():
     client_request = request.get_json()
 
     try:
+        # Create customer order line.
         order_line = model.OrderLine(
             order_id=client_request["order_id"],
             sku=client_request["sku"],
             qty=client_request["qty"]
         )
 
+        # Allocate order line to a suitable batch.
         batch_ref = services.allocate(
             order_line=order_line,
             uow=unit_of_work.SQLAlchemyUnitOfWork()

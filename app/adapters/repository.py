@@ -19,7 +19,8 @@ class AbstractProductRepository(ABC):
 
 
 class SQLAlchemyProductRepository(AbstractProductRepository):
-    """SQLAlchemy repository for Product aggregates."""
+    """SQLAlchemy repository for Product aggregates. Loads and saves
+    product models and commits changes to the database."""
 
     def __init__(self, session: Session):
         self.session = session

@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker, clear_mappers
 
 from app.domain import model
 from app.adapters import orm
-from app.adapters.repository import SqlAlchemyRepository
+from app.adapters.repository import SQLAlchemyProductRepository
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -44,39 +44,34 @@ def session(session_factory):
 
 @pytest.fixture
 def add_stock(session):
-    """
-    Add batches to the test database.
-
-    The E2E tests use this fixture to create the inventory needed for
-    an allocation scenario.
-
-    Example:
-
-        add_stock([
-            ("batch-1", "SKU-1", 100, "2011-01-01"),
-            ("batch-2", "SKU-1", 50, None),
-        ])
-    """
+    """Add products and their batches to the test database."""
 
     def add_stock_to_database(batches):
-        repository = SqlAlchemyRepository(session)        
+        products = {}
 
-        for reference, sku, quantity, eta in batches:
+        for ref, sku, qty, eta in batches:
             eta = date.fromisoformat(eta) if eta else None
-            
+
             batch = model.Batch(
-                ref=reference,
+                ref=ref,
                 sku=sku,
-                qty=quantity,
-                eta=eta,
+                qty=qty,
+                eta=eta
             )
 
-            repository.add(batch)
+            if sku not in products:
+                products[sku] = model.Product(sku, batches=[])
+
+            products[sku].batches.append(batch)
+
+        repository = SQLAlchemyProductRepository(session)
+
+        for product in products.values():
+            repository.add(product)
 
         session.commit()
 
     return add_stock_to_database
-
 
 # ---------------------------------------------------------------------------
 # API
