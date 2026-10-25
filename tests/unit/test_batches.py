@@ -5,10 +5,11 @@ A Unit Test tests one small piece of your program in isolation.
 import pytest
 from datetime import date, timedelta
 
+from app.domain import model
+from app.service_layer import services
 from app.domain.model import (
     Batch, 
-    OrderLine, 
-    allocate,
+    OrderLine,
     OutOfStock
 )
 
@@ -101,9 +102,14 @@ def test_prefers_current_stock_batches_to_shipments():
         eta=date.today() + timedelta(days=1)
     )
 
+    product = model.Product(
+        "RETRO-CLOCK",
+        [shipment_batch, in_stock_batch]
+    )
+
     line = OrderLine("oref", "RETRO-CLOCK", 10)
 
-    allocate(line, [in_stock_batch, shipment_batch])
+    product.allocate(line)
 
     assert in_stock_batch.available_quantity == 90
     assert shipment_batch.available_quantity == 100
@@ -131,9 +137,14 @@ def test_prefers_earlier_batches():
         eta=date.today() + timedelta(days=10)
     )
 
-    line = OrderLine("order1", "MINIMALIST-SPOON", 10)
+    product = model.Product(
+        "MINIMALIST-SPOON",
+        [latest, medium, earliest]
+    )
 
-    allocate(line, [medium, earliest, latest])
+    line = OrderLine("oref", "MINIMALIST-SPOON", 10)
+
+    product.allocate(line)
 
     assert earliest.available_quantity == 90
     assert medium.available_quantity == 100
@@ -155,18 +166,33 @@ def test_returns_allocated_batch_ref():
         eta=date.today() + timedelta(days=1)
     )
 
+    product = model.Product(
+        "HIGHBROW-POSTER",
+        [shipment_batch, in_stock_batch]
+    )
+
     line = OrderLine("oref", "HIGHBROW-POSTER", 10)
 
-    allocation = allocate(line, [in_stock_batch, shipment_batch])
+    allocation = product.allocate(line)
 
     assert allocation == in_stock_batch.reference
 
 
 def test_raises_out_of_stock_exception_if_cannot_allocate():
-    batch = Batch("batch-1", "SMALL-FORK", 10, eta=date.today())  # Available Forks are 10
+    batch = Batch(
+        "batch-1",
+        "SMALL-FORK",
+        10,
+        eta=date.today()
+    )
 
-    allocate(OrderLine("order-1", "SMALL-FORK", 10), [batch])  # Ordered forks are 10
+    product = model.Product("SMALL-FORK", [batch])
 
-    # Raised if another order is placed on an empty batch
+    allocated_line = OrderLine("oref", "SMALL-FORK", 10)
+
+    out_of_stock_line = OrderLine("out-of-stock", "SMALL-FORK", 1)
+
+    product.allocate(allocated_line)
+
     with pytest.raises(OutOfStock, match="SMALL-FORK"):
-        allocate(OrderLine("order-2", "SMALL-FORK", 1), [batch])
+        product.allocate(out_of_stock_line)
