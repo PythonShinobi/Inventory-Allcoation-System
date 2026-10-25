@@ -49,36 +49,71 @@ def get_allocated_batch_ref(session, order_id, sku):
     return batch_ref
 
 
-def test_uow_can_retrieve_a_batch_and_allocate_to_it(session_factory):
+def test_uow_can_retrieve_a_product_and_allocate_to_its_batch(
+    session_factory,
+):
     session = session_factory()
 
-    insert_batch(
-        session,
-        "batch1",
-        "HIPSTER_WORKBENCH",
-        100,
-        None
-    )
+    try:
+        # Create the product before its batch.
+        session.execute(
+            text(
+                """
+                INSERT INTO products (sku, version_number)
+                VALUES (:sku, 0)
+                """
+            ),
+            {"sku": "HIPSTER_WORKBENCH"},
+        )
 
-    session.commit()
+        session.execute(
+            text(
+                """
+                INSERT INTO batches_table
+                    (reference, sku, _purchased_quantity, eta)
+                VALUES
+                    (:reference, :sku, :quantity, :eta)
+                """
+            ),
+            {
+                "reference": "batch1",
+                "sku": "HIPSTER_WORKBENCH",
+                "quantity": 100,
+                "eta": None,
+            },
+        )
+
+        session.commit()
+    finally:
+        session.close()
 
     uow = unit_of_work.SQLAlchemyUnitOfWork(session_factory)
 
     with uow:
-        batch = uow.batches.get(reference="batch1")
+        product = uow.products.get("HIPSTER_WORKBENCH")
+
+        assert product is not None
 
         order_line = model.OrderLine(
             "o1",
             "HIPSTER_WORKBENCH",
-            10
+            10,
         )
 
-        batch.allocate(order_line)
+        batch_ref = product.allocate(order_line)
 
         uow.commit()
 
-        batch_ref = get_allocated_batch_ref(
-            session, "o1", "HIPSTER_WORKBENCH"
+    # Verify the allocation persisted in the database.
+    verification_session = session_factory()
+
+    try:
+        allocated_batch_ref = get_allocated_batch_ref(
+            verification_session,
+            "o1",
+            "HIPSTER_WORKBENCH",
         )
 
-        assert batch_ref == "batch1"
+        assert allocated_batch_ref == "batch1"
+    finally:
+        verification_session.close()

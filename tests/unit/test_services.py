@@ -14,26 +14,20 @@ from app.adapters import repository
 from app.service_layer import services, unit_of_work
 
 
-class FakeRepository(repository.AbstractRepository):
-    def __init__(self, batches):
-        self._batches = set(batches)
+class FakeRepository(repository.AbstractProductRepository):
+    def __init__(self, products=()):
+        self._products = {product.sku: product for product in products}
 
-    def add(self, batch):
-        self._batches.add(batch)
+    def add(self, product):
+        self._products[product.sku] = product
 
-    def get(self, reference):
-        return next(
-            b for b in self._batches
-            if b.reference == reference
-        )
-
-    def list(self):
-        return list(self._batches)
+    def get(self, sku):
+        return self._products.get(sku)
 
 
 class FakeUnitOfWork(unit_of_work.AbstractUnitOfWork):
     def __init__(self):
-        self.batches = FakeRepository([])
+        self.products = FakeRepository([])
         self.committed = False
 
     def commit(self):
@@ -44,104 +38,56 @@ class FakeUnitOfWork(unit_of_work.AbstractUnitOfWork):
 
 
 def test_returns_allocation():
-    line = model.OrderLine(
-        "o1",
-        "COMPLICATED-LAMP",
-        10,
-    )
+    line = model.OrderLine("oref", "COMPLICATED-LAMP", 10)
 
-    batch = model.Batch(
-        "b1",
-        "COMPLICATED-LAMP",
-        100,
-        eta=None,
-    )
+    batch = model.Batch("b1", "COMPLICATED-LAMP", 100, eta=None)
+    product = model.Product("COMPLICATED-LAMP", [batch])
 
     uow = FakeUnitOfWork()
-    uow.batches = FakeRepository([batch])
+    uow.products.add(product)
 
-    result = services.allocate(
-        line,
-        uow,
-    )
+    result = services.allocate(line, uow)
 
     assert result == "b1"
 
 
 def test_error_for_invalid_sku():
-    line = model.OrderLine(
-        "o1",
-        "NONEXISTENTSKU",
-        10,
-    )
-
-    batch = model.Batch(
-        "b1",
-        "AREALSKU",
-        100,
-        eta=None,
-    )
+    line = model.OrderLine("o1", "NONEXISTENTSKU", 10)
 
     uow = FakeUnitOfWork()
-    uow.batches = FakeRepository([batch])
 
     with pytest.raises(
         services.InvalidSku,
         match="Invalid sku NONEXISTENTSKU",
     ):
-        services.allocate(
-            line,
-            uow,
-        )
+        services.allocate(line, uow)
 
 
 def test_commits():
-    line = model.OrderLine(
-        "o1",
-        "OMINOUS-MIRROR",
-        10,
-    )
+    line = model.OrderLine("o1", "OMINOUS-MIRROR", 10)
 
-    batch = model.Batch(
-        "b1",
-        "OMINOUS-MIRROR",
-        100,
-        eta=None,
-    )
+    batch = model.Batch("b1", "OMINOUS-MIRROR", 100, eta=None)
+    product = model.Product("OMINOUS-MIRROR", [batch])
 
     uow = FakeUnitOfWork()
-    uow.batches = FakeRepository([batch])
+    uow.products.add(product)
 
-    services.allocate(
-        line,
-        uow,
-    )
+    services.allocate(line, uow)
 
     assert uow.committed is True
 
 
 def test_error_for_out_of_stock():
-    line = model.OrderLine(
-        "o1",
-        "COMPLICATED-LAMP",
-        200,
-    )
+    line = model.OrderLine("o1", "COMPLICATED-LAMP", 200)
 
-    batch = model.Batch(
-        "b1",
-        "COMPLICATED-LAMP",
-        100,
-        eta=None,
-    )
+    batch = model.Batch("b1", "COMPLICATED-LAMP", 100, eta=None)
+    product = model.Product("COMPLICATED-LAMP", [batch])
 
     uow = FakeUnitOfWork()
-    uow.batches = FakeRepository([batch])
+    uow.products.add(product)
 
     with pytest.raises(
         model.OutOfStock,
-        match="Out of stock for SKU COMPLICATED-LAMP",
+        match="COMPLICATED-LAMP",
     ):
-        services.allocate(
-            line,
-            uow,
-        )
+        services.allocate(line, uow)

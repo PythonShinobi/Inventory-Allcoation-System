@@ -39,11 +39,7 @@ def test_orderline_mapper_can_save_lines(session):
     Verify that SQLAlchemy correctly persists OrderLine domain
     objects to the database.
     """
-    new_line = model.OrderLine(
-        "order1",
-        "DECORATIVE-WIDGET",
-        12,
-    )
+    new_line = model.OrderLine("order1", "DECORATIVE-WIDGET", 12)
 
     session.add(new_line)
     session.commit()

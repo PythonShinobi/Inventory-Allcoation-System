@@ -140,7 +140,9 @@ def allocate(
 ) -> str:
     """Allocate an order line through its Product aggregrate."""
 
+    # Start unit of work context.
     with uow:
+        # uow provides SQLAlchemyProductRepository.
         product = uow.products.get(order_line.sku)
 
         if product is None:

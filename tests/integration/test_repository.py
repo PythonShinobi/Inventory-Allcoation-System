@@ -1,12 +1,27 @@
+
 """
-An integration test checks whether multiple parts of your application 
-work correctly together.
+Integration tests for the SQLAlchemy Product repository.
+
+An integration test checks whether multiple parts of the
+application work correctly together.
 """
 
 from sqlalchemy import text
 
 from app.domain import model
 from app.adapters import repository
+
+
+def insert_product(session, sku):
+    session.execute(
+        text(
+            """
+            INSERT INTO products (sku, version_number)
+            VALUES (:sku, 0)
+            """
+        ),
+        {"sku": sku},
+    )
 
 
 def insert_order_line(session):
@@ -24,8 +39,8 @@ def insert_order_line(session):
             """
             SELECT id
             FROM order_lines_table
-            WHERE order_id=:order_id
-            AND sku=:sku
+            WHERE order_id = :order_id
+            AND sku = :sku
             """
         ),
         {
@@ -41,25 +56,16 @@ def insert_batch(session, reference):
     session.execute(
         text(
             """
-            INSERT INTO batches_table (reference, sku, _purchased_quantity, eta)
-            VALUES (:reference, 'GENERIC-SOFA', 100, NULL)
+            INSERT INTO batches_table
+                (reference, sku, _purchased_quantity, eta)
+            VALUES
+                (:reference, 'GENERIC-SOFA', 100, NULL)
             """
         ),
         {"reference": reference},
     )
 
-    [[batch_id]] = session.execute(
-        text(
-            """
-            SELECT reference
-            FROM batches_table
-            WHERE reference=:reference
-            """
-        ),
-        {"reference": reference},
-    )
-
-    return batch_id
+    return reference
 
 
 def insert_allocation(session, orderline_id, batch_id):
@@ -77,16 +83,36 @@ def insert_allocation(session, orderline_id, batch_id):
     )
 
 
-def test_repository_can_save_a_batch(session):
-    batch = model.Batch("batch1", "RUSTY-SOAPDISH", 100, eta=None)
+def test_repository_can_save_a_product_with_a_batch(session):
+    batch = model.Batch(
+        "batch1",
+        "RUSTY-SOAPDISH",
+        100,
+        eta=None,
+    )
 
-    repo = repository.SqlAlchemyRepository(session)
+    product = model.Product(
+        "RUSTY-SOAPDISH",
+        batches=[batch],
+    )
 
-    repo.add(batch)
+    repo = repository.SQLAlchemyProductRepository(session)
 
+    repo.add(product)
     session.commit()
 
-    rows = list(
+    product_rows = list(
+        session.execute(
+            text(
+                """
+                SELECT sku, version_number
+                FROM products
+                """
+            )
+        )
+    )
+
+    batch_rows = list(
         session.execute(
             text(
                 """
@@ -97,12 +123,17 @@ def test_repository_can_save_a_batch(session):
         )
     )
 
-    assert rows == [
+    assert product_rows == [("RUSTY-SOAPDISH", 0)]
+    assert batch_rows == [
         ("batch1", "RUSTY-SOAPDISH", 100, None)
     ]
 
 
-def test_repository_can_retrieve_a_batch_with_allocations(session):
+def test_repository_can_retrieve_a_product_with_batch_allocations(
+    session,
+):
+    insert_product(session, "GENERIC-SOFA")
+
     orderline_id = insert_order_line(session)
 
     batch1_id = insert_batch(session, "batch1")
@@ -114,9 +145,21 @@ def test_repository_can_retrieve_a_batch_with_allocations(session):
         batch1_id,
     )
 
-    repo = repository.SqlAlchemyRepository(session)
+    session.commit()
 
-    retrieved = repo.get("batch1")
+    repo = repository.SQLAlchemyProductRepository(session)
+
+    retrieved = repo.get("GENERIC-SOFA")
+
+    assert retrieved is not None
+    assert retrieved.sku == "GENERIC-SOFA"
+    assert len(retrieved.batches) == 2
+
+    batch1 = next(
+        batch
+        for batch in retrieved.batches
+        if batch.reference == "batch1"
+    )
 
     expected = model.Batch(
         "batch1",
@@ -125,10 +168,13 @@ def test_repository_can_retrieve_a_batch_with_allocations(session):
         eta=None,
     )
 
-    assert retrieved == expected
-    assert retrieved.sku == expected.sku
-    assert retrieved._purchased_quantity == expected._purchased_quantity
+    assert batch1 == expected
+    assert batch1.sku == expected.sku
+    assert (
+        batch1._purchased_quantity
+        == expected._purchased_quantity
+    )
 
-    assert retrieved._allocations == {
+    assert batch1._allocations == {
         model.OrderLine("order1", "GENERIC-SOFA", 12)
     }
