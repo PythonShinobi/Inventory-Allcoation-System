@@ -15,7 +15,7 @@ from app.domain.model import (
 )
 
 
-def make_batch_and_line(sku, batch_qty, order_line_qty):
+def make_batch_and_order_line(sku, batch_qty, order_line_qty):
     return (
         Batch(
             ref="batch-001", 
@@ -32,26 +32,26 @@ def make_batch_and_line(sku, batch_qty, order_line_qty):
     )
 
 
-def test_can_allocate_if_available_greater_than_required():
-    large_batch, small_order_line = make_batch_and_line("ELEGANT-LAMP", 20, 2)
+def test_can_allocate_if_available_quantity_greater_than_required():
+    large_batch, small_order_line = make_batch_and_order_line("ELEGANT-LAMP", 20, 2)
 
     assert large_batch.can_allocate(small_order_line) is True
 
 
-def test_cannot_allocate_if_available_smaller_than_required():
-    small_batch, large_order_line = make_batch_and_line("ELEGANT-LAMP", 2, 20)
+def test_cannot_allocate_if_available_quantity_smaller_than_required():
+    small_batch, large_order_line = make_batch_and_order_line("ELEGANT-LAMP", 2, 20)
 
     assert small_batch.can_allocate(large_order_line) is False
 
 
-def test_can_allocate_if_available_equal_to_required():
-    batch, line = make_batch_and_line("ELEGANT-LAMP", 2, 2)
+def test_can_allocate_if_available_quantity_equal_to_required():
+    batch, line = make_batch_and_order_line("ELEGANT-LAMP", 2, 2)
 
     assert batch.can_allocate(line) is True
 
 
 def test_can_only_deallocate_allocated_lines():
-    batch, unallocated_order_line = make_batch_and_line("DECORATIVE-TRINKET", 20, 2)
+    batch, unallocated_order_line = make_batch_and_order_line("DECORATIVE-TRINKET", 20, 2)
 
     batch.deallocate(unallocated_order_line)
     
@@ -72,7 +72,7 @@ def test_cannot_allocate_if_skus_do_not_match():
 
 
 def test_cannot_allocate_same_order_line_twice():
-    batch, line = make_batch_and_line("ANGULAR-DESK", 20, 2)
+    batch, line = make_batch_and_order_line("ANGULAR-DESK", 20, 2)
 
     batch.allocate(line)
 
@@ -103,10 +103,7 @@ def test_prefers_current_stock_batches_to_shipments():
         eta=date.today() + timedelta(days=1)
     )
 
-    product = model.Product(
-        "RETRO-CLOCK",
-        [shipment_batch, in_stock_batch]
-    )
+    product = model.Product("RETRO-CLOCK", [shipment_batch, in_stock_batch])
 
     line = OrderLine("oref", "RETRO-CLOCK", 10)
 
@@ -138,10 +135,7 @@ def test_prefers_earlier_batches():
         eta=date.today() + timedelta(days=10)
     )
 
-    product = model.Product(
-        "MINIMALIST-SPOON",
-        [latest, medium, earliest]
-    )
+    product = model.Product("MINIMALIST-SPOON", [latest, medium, earliest])
 
     line = OrderLine("oref", "MINIMALIST-SPOON", 10)
 
