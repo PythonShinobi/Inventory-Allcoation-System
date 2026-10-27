@@ -1,113 +1,55 @@
+
 """
 Domain model for the inventory allocation system.
 
-This module contains the core business concepts and rules used to
-allocate customer orders against available inventory.
+This module defines the core business objects and rules used to
+allocate customer orders to available inventory.
 
-The domain model is intentionally independent of infrastructure.
-It does not know about Flask, HTTP requests, SQLAlchemy, databases,
-repositories, or API responses. It contains only the business logic
-needed to represent inventory and perform allocation.
+The domain model is responsible for deciding whether an order line
+can be fulfilled, tracking inventory allocations, prioritising batches,
+and raising domain exceptions when inventory is insufficient.
 
-Core domain concepts:
+The module contains the following components:
 
-    OrderLine
-        A value object representing a product requested by a customer.
+    OrderLine:
+        A value object representing a customer's request for a
+        specific quantity of a product.
 
-    Batch
-        An entity representing a quantity of inventory belonging to
-        a particular SKU.
+    Batch:
+        An entity representing a quantity of inventory for a SKU.
+        Tracks allocations, calculates available quantity, and
+        determines whether an order line can be fulfilled.
 
-    OutOfStock
-        A domain exception raised when an order cannot be allocated.
+    Product:
+        The aggregate root that coordinates allocation across the
+        batches belonging to a product. It validates the requested
+        SKU, selects an eligible batch, and updates its version
+        number when an allocation succeeds.
 
-    allocate()
-        A domain service that chooses the most suitable batch for
-        an order line and performs the allocation.
+    OutOfStock:
+        A domain exception raised when an order line cannot be
+        allocated because the SKU does not match or sufficient
+        inventory is unavailable.
 
-Allocation rules:
+Business rules:
 
-    1. The batch SKU must match the order-line SKU.
-    2. The batch must have enough available quantity.
-    3. Inventory already in stock (ETA is None) is preferred.
-    4. If inventory is not currently in stock, the batch with the
-       earliest ETA is preferred.
-    5. If no suitable batch exists, OutOfStock is raised.
+    1. An order line can only be allocated to a batch containing
+       the same SKU.
+    2. A batch must have sufficient available quantity to fulfil
+       the entire order line.
+    3. Repeated allocation of the same order line to the same batch
+       does not increase the allocated quantity.
+    4. Batches already in stock are prioritised over incoming
+       shipments.
+    5. Among incoming shipments, batches with earlier expected
+       arrival dates are prioritised.
+    6. A successful allocation updates the Product aggregate's
+       version number to support optimistic concurrency control.
 
-The domain model is used by the service layer. The service layer
-coordinates the use case, while this module makes the actual
-business decisions.
-
-Typical flow::
-
-    OrderLine
-        |
-        v
-    Service Layer
-        |
-        v
-    domain.allocate()
-        |
-        +--> Batch.can_allocate()
-        |
-        +--> Batch.allocate()
-        |
-        v
-    Batch reference
-
-Example::
-
-    line = OrderLine(
-        order_id="order-001",
-        sku="LAMP-001",
-        qty=10,
-    )
-
-    batch = Batch(
-        ref="batch-001",
-        sku="LAMP-001",
-        qty=100,
-        eta=None,
-    )
-
-    batch_ref = allocate(line, [batch])
-
-    assert batch_ref == "batch-001"
-    assert batch.available_quantity == 90
-
-Domain responsibilities::
-
-    - Represent inventory and customer order concepts.
-    - Enforce inventory allocation rules.
-    - Track allocated quantities.
-    - Determine whether an allocation is possible.
-    - Select the appropriate batch.
-    - Report domain-level errors.
-
-Non-responsibilities::
-
-    - Reading or writing the database.
-    - Performing SQL queries.
-    - Handling HTTP requests.
-    - Returning JSON responses.
-    - Validating API request formats.
-    - Managing application workflows.
-
-Architectural role::
-
-    API
-      |
-      v
-    Service Layer
-      |
-      v
-    Domain Model  <-- this module
-      |
-      v
-    Business rules
-
-The domain model should remain usable as ordinary Python code
-without requiring any external infrastructure.
+This module contains domain logic and does not depend on the
+database, web framework, or external infrastructure. Other layers
+of the application coordinate persistence and expose these
+business rules through application services and API endpoints.
 """
 
 from datetime import date
@@ -222,8 +164,13 @@ class Batch:
             # decreases by line.qty
         """
 
-        if self.can_allocate(line):
-            self._allocations.add(line)
+        if line in self._allocations:
+            raise ValueError("Order line is already allocated.")
+
+        if not self.can_allocate(line):
+            raise OutOfStock(line.sku)
+
+        self._allocations.add(line)
 
     def deallocate(self, order_line: OrderLine):
         """
@@ -266,7 +213,7 @@ class Batch:
 
         A batch can allocate an order line when:
 
-        1. The batch SKU matches the order-line SKU.
+        1. The order and batch must refer to the same product(SKU).
         2. The batch has enough available quantity.
 
         Args:
@@ -324,13 +271,19 @@ class Batch:
             3. Later incoming shipments
         """
 
-        # The batch is in stock.
+        # This batch is already in stock.
         if self.eta is None:
-            return True
+            # If both batches are already in stock, neither 
+            # should be considered earlier than the other based on ETA.
+            return other.eta is not None
 
+        # The other batch is already in stock, so 
+        # this batch should come after it.
         if other.eta is None:
             return False
 
+        # if both batches are incoming shipments (both ETAs are dates, not None), 
+        # the batch with the earlier expected arrival date comes first.
         return self.eta < other.eta
 
 

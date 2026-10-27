@@ -59,7 +59,7 @@ def test_happy_path_returns_201_and_allocated_batch(add_stock):
     response = requests.post(
         f"{config.get_api_url()}/allocate",
         json={
-            "orderid": random_orderid(),
+            "order_id": random_orderid(),
             "sku": sku,
             "qty": 3,
         },
@@ -77,7 +77,7 @@ def test_unhappy_path_returns_400_and_error_message():
     response = requests.post(
         f"{config.get_api_url()}/allocate",
         json={
-            "orderid": orderid,
+            "order_id": orderid,
             "sku": unknown_sku,
             "qty": 20,
         },
