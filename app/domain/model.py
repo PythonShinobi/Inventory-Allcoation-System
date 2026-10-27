@@ -99,6 +99,10 @@ class OrderLine:
     qty: int
 
 
+class DuplicateAllocation(Exception):
+    pass
+
+
 class Batch:
     """
     Represents a batch of inventory for a specific SKU.
@@ -165,7 +169,10 @@ class Batch:
         """
 
         if line in self._allocations:
-            raise ValueError("Order line is already allocated.")
+            raise DuplicateAllocation(
+                f"Order line {line.order_id} is already allocated"
+                f" to batch {self.reference}"
+            )
 
         if not self.can_allocate(line):
             raise OutOfStock(line.sku)
