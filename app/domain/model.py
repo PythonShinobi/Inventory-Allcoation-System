@@ -1,61 +1,56 @@
-
 """
-Domain model for the inventory allocation system.
+Domain model for the Inventory Allocation System.
 
-This module defines the core business objects and rules used to
-allocate customer orders to available inventory.
+This module defines the core domain objects, business rules, and
+exceptions responsible for managing inventory allocation.
 
-The domain model is responsible for deciding whether an order line
-can be fulfilled, tracking inventory allocations, prioritising batches,
-and raising domain exceptions when inventory is insufficient.
+It models the relationship between customer order lines, products,
+and inventory batches, ensuring that allocation decisions follow
+the business rules of the system.
 
-The module contains the following components:
-
+Classes:
     OrderLine:
-        A value object representing a customer's request for a
-        specific quantity of a product.
+        Represents a customer's request for a specific product and
+        quantity. A value object identified by its field values.
 
     Batch:
-        An entity representing a quantity of inventory for a SKU.
-        Tracks allocations, calculates available quantity, and
-        determines whether an order line can be fulfilled.
+        Represents a quantity of inventory for a specific SKU.
+        Tracks allocations and calculates available inventory.
 
     Product:
-        The aggregate root that coordinates allocation across the
-        batches belonging to a product. It validates the requested
-        SKU, selects an eligible batch, and updates its version
-        number when an allocation succeeds.
+        Acts as the aggregate root for a product and its associated
+        batches. Coordinates allocation and maintains the product's
+        version number.
+
+    DuplicateAllocation:
+        Exception raised when an order line is allocated to the same
+        batch more than once.
 
     OutOfStock:
-        A domain exception raised when an order line cannot be
-        allocated because the SKU does not match or sufficient
-        inventory is unavailable.
+        Exception raised when no suitable batch can fulfil an order
+        line.
 
 Business rules:
+    - An order line and batch must have matching SKUs.
+    - A batch must have sufficient available quantity.
+    - An order line cannot be allocated to the same batch twice.
+    - Available quantity is the purchased quantity minus allocations.
+    - Current inventory is prioritised over incoming shipments.
+    - Incoming shipments are prioritised by earliest expected arrival.
 
-    1. An order line can only be allocated to a batch containing
-       the same SKU.
-    2. A batch must have sufficient available quantity to fulfil
-       the entire order line.
-    3. Repeated allocation of the same order line to the same batch
-       does not increase the allocated quantity.
-    4. Batches already in stock are prioritised over incoming
-       shipments.
-    5. Among incoming shipments, batches with earlier expected
-       arrival dates are prioritised.
-    6. A successful allocation updates the Product aggregate's
-       version number to support optimistic concurrency control.
+Architectural responsibility:
+    This module belongs to the domain layer. It contains business
+    logic independently of databases, SQLAlchemy, Flask, and other
+    infrastructure concerns.
 
-This module contains domain logic and does not depend on the
-database, web framework, or external infrastructure. Other layers
-of the application coordinate persistence and expose these
-business rules through application services and API endpoints.
+    Application services coordinate operations involving these
+    objects, while repositories and the Unit of Work handle
+    persistence and transaction management.
 """
 
 from datetime import date
 from typing import Optional, List
 from dataclasses import dataclass
-
 
 @dataclass(unsafe_hash=True)
 class OrderLine:
@@ -379,6 +374,8 @@ class Product:
         the order line and records the allocation when successful.
         """
 
+        # Checks whether the order line's SKU matches 
+        # the product aggregate's SKU.
         if line.sku != self.sku:
             raise OutOfStock(line.sku)
 

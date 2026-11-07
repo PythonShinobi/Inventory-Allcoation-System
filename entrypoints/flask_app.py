@@ -10,6 +10,7 @@ orm.start_mappers()
 
 app = Flask("entrypoints/flask_app.py")
 
+# Define the API endpoint.
 @app.route("/allocate", methods=["POST"])
 def allocate_endpoint():
     client_request = request.get_json()

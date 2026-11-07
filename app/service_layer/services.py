@@ -1,74 +1,56 @@
 """
-Application service layer for the inventory allocation system.
+Application services for the Inventory Allocation System.
 
-This module contains application-level use cases that coordinate
-the domain model with application infrastructure through a Unit of Work.
+This module defines the application-level operations responsible for
+coordinating inventory management and order allocation.
 
-The service layer is responsible for orchestration. It retrieves the
-current state of the application through the Unit of Work, performs
-application-level validation, delegates business decisions to the
-domain model, and commits successful changes.
+It acts as the service layer between the API entrypoints and the
+domain model. It retrieves domain objects through repositories,
+invokes domain behaviour, and uses the Unit of Work to coordinate
+database transactions.
 
-It does not contain the core inventory business rules. Those rules
-belong in ``app.domain.model``. It also does not handle HTTP, JSON,
-or Flask-specific concerns.
-
-Architecture::
-
-    API / Flask
-        |
-        v
-    Service Layer
-        |
-        v
-    Abstract Unit of Work
-        |
-        +------> Repository
-        |
-        +------> Database Session
-        |
-        v
-    Result
-
-Typical flow::
-
-    allocate()
-        |
-        +-- uow.batches.list()
-        |
-        +-- is_valid_sku()
-        |
-        +-- model.allocate()
-        |
-        +-- uow.commit()
-        |
-        +-- return batch reference
-
-The service layer depends on ``AbstractUnitOfWork`` rather than on a
-specific database session or repository implementation. This keeps
-the service layer independent of the persistence technology and makes
-the use cases easier to test.
-
-Exceptions:
-
+Classes:
     InvalidSku:
-        Raised when the requested SKU does not exist in the current
-        inventory state.
+        Application-level exception raised when an allocation request
+        references a SKU that does not correspond to an existing
+        product.
 
-    model.OutOfStock:
-        Raised by the domain model when no batch can satisfy the
-        requested order line.
+Functions:
+    is_valid_sku(sku, batches):
+        Checks whether a SKU exists among the supplied inventory
+        batches.
 
-See Also:
+    add_batch(ref, sku, qty, eta, uow):
+        Adds a new inventory batch to an existing product or creates
+        a new Product aggregate when the product does not exist.
+        Commits the changes through the Unit of Work.
 
+    allocate(order_line, uow):
+        Retrieves the Product associated with an order line, validates
+        that the product exists, and delegates allocation to the
+        Product aggregate. Commits the successful allocation and
+        returns the reference of the selected batch.
+
+Architectural responsibilities:
+    - Coordinate business operations through application services.
+    - Retrieve and persist domain objects through repositories.
+    - Delegate business rules to the domain model.
+    - Manage transaction boundaries through the Unit of Work.
+    - Raise application-level exceptions when requested products
+      cannot be found.
+
+Dependencies:
     app.domain.model:
-        Contains the domain entities and core inventory allocation rules.
+        Provides the domain objects and business rules used by the
+        application services.
 
     app.service_layer.unit_of_work:
-        Defines the Unit of Work abstraction used by this service layer.
+        Provides the Unit of Work abstraction used to coordinate
+        repository access and database transactions.
 
-    app.adapters.repository:
-        Contains repository implementations used by the Unit of Work.
+This module belongs to the application layer. It coordinates the
+execution of business operations without implementing database
+queries, HTTP request handling, or the core allocation rules itself.
 """
 
 from datetime import date
@@ -76,7 +58,6 @@ from typing import Optional
 
 from app.domain import model
 from app.service_layer import unit_of_work
-
 
 class InvalidSku(Exception):
     """
@@ -140,7 +121,7 @@ def allocate(
 ) -> str:
     """Allocate an order line through its Product aggregrate."""
 
-    # Start unit of work context.
+    # Start unit of work context for database transactions.
     with uow:
         # uow provides SQLAlchemyProductRepository.
         product = uow.products.get(order_line.sku)
@@ -148,7 +129,8 @@ def allocate(
         if product is None:
             raise InvalidSku(f"Invalid sku {order_line.sku}")
 
-        batch_ref = product.allocate(order_line)  # Applies the domain rules to the product's batches.
+        # Applies the domain rules to the product's batches.
+        batch_ref = product.allocate(order_line)
 
         uow.commit()
 
